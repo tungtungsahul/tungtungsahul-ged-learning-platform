@@ -1,0 +1,5 @@
+"use client";
+import {useEffect,useState} from "react"; import {Shell} from "../../components/Shell"; import {api} from "../../lib/api";
+export default function Mistakes(){const[d,setD]=useState<any[]>([]);useEffect(()=>{api<any[]>("/skills/mistakes").then(setD)},[]);
+ return <Shell><div className="topbar"><b>Mistake Bank</b></div><div className="content"><h1 className="title">Questions to revisit</h1><p className="subtitle">Every missed question can become a targeted study task.</p><div style={{marginTop:18}}>{d.length?d.map((m:any)=><div className="card" key={m.id} style={{marginBottom:10}}><span className="badge">{m.topic}</span><p className="muted">Question ID: {m.questionId}</p><div style={{display:"flex",gap:8}}><button className="btn btn-soft">Review</button><button className="btn btn-muted">Mark reviewed</button></div></div>):<div className="card">No mistakes yet. Complete a practice exam to build the bank.</div>}</div></div></Shell>
+}

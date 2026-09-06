@@ -1,0 +1,8 @@
+"use client";
+import {useRef,useState} from "react";import {Shell} from "../../../components/Shell";
+const bars=[20,42,30,56,25,62,35,48,22,66,36,52,28,60,34,44,20,57,30,46,24,61,36,50,28,58,31,44,25,54];
+export default function Listening(){
+ const [rate,setRate]=useState(1);const [show,setShow]=useState(false);const ref=useRef<HTMLAudioElement>(null);
+ function jump(n:number){if(ref.current)ref.current.currentTime+=n}
+ return <Shell><div className="topbar"><b>Listening Lab</b></div><div className="content"><h1 className="title">Listening practice</h1><div className="card" style={{marginTop:18}}><div className="wave">{bars.map((h,i)=><span key={i} style={{height:h}}/>)}</div><audio ref={ref} controls style={{width:"100%",marginTop:14}}><source src="/sample-audio.mp3" type="audio/mpeg"/></audio><div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}><button className="btn btn-muted" onClick={()=>jump(-5)}>↶ 5s</button><button className="btn btn-muted" onClick={()=>jump(5)}>5s ↷</button>{[.8,1,1.2].map(v=><button key={v} className={`btn ${rate===v?"btn-primary":"btn-muted"}`} onClick={()=>{setRate(v);if(ref.current)ref.current.playbackRate=v}}>{v}x</button>)}</div></div><div className="card" style={{marginTop:16}}><div className="section-title">Interactive transcript</div><button className="btn btn-soft" onClick={()=>setShow(!show)}>{show?"Hide transcript":"Show transcript after answer"}</button>{show&&<p className="passageText" style={{marginTop:12}}>The speaker explains how learners can improve comprehension by predicting the topic, listening for evidence, and checking unfamiliar vocabulary after the first listen.</p>}</div></div></Shell>
+}
