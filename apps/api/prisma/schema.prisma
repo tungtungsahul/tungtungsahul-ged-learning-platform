@@ -147,7 +147,7 @@ model Option {
 
 model Attempt {
   id            String        @id @default(cuid())
-  learnerId     String        @default("demo-learner")
+  learnerId     String
   examId        String
   startedAt     DateTime      @default(now())
   expiresAt     DateTime
@@ -156,6 +156,7 @@ model Attempt {
   score         Int?
   percentage    Int?
   gedScore      Int?
+  workspaceState Json?
   exam          Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
   answers       Answer[]
   result        Result?
@@ -201,7 +202,7 @@ model ExamSchedule {
 model Mistake {
   id          String   @id @default(cuid())
   courseId    String
-  learnerId   String  @default("demo-learner")
+  learnerId   String
   questionId  String
   topic       String
   note        String?
@@ -222,7 +223,7 @@ model Flashcard {
 
 model TutorConversation {
   id        String        @id @default(cuid())
-  learnerId String        @default("demo-learner")
+  learnerId String
   subject   Subject?
   examId    String?
   attemptId String?

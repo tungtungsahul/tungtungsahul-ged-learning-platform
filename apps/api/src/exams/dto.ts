@@ -16,3 +16,8 @@ export class AnswerDto {
   @IsObject()
   payload?: Record<string, unknown>;
 }
+
+export class WorkspaceStateDto {
+  @IsObject()
+  state!: Record<string, unknown>;
+}

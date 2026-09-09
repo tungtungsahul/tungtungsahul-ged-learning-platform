@@ -2,6 +2,17 @@
 
 A no-login full-stack GED learning and practice platform.
 
+## Feature status
+
+| Status | Feature |
+| --- | --- |
+| ✅ Done | Anonymous browser identity, isolated exam attempts, server timer/autosave, simulated practice scoring, result review, mistake bank, dashboard analytics |
+| ✅ Done | Admin exam creation and CSV/JSON validate-preview-import |
+| ✅ Done | Math calculator/formula sheet, Writing rubric/fallback feedback, Listening timestamp transcript, persistent Tutor conversations |
+| 🟡 Beta | Reading highlights/elimination workspace persistence, Science/Social subject workspaces, adaptive study plan |
+| 🟠 Prototype | Drag/drop question interaction, graph/coordinate question engine, speaking local recording metrics |
+| 🔴 Planned | PDF/DOCX import, production STT/word alignment/pronunciation analysis, streaming Tutor, official GED score equivalency |
+
 ## Highlights
 
 - Four GED subjects: Mathematical Reasoning, Science, Social Studies, RLA
@@ -59,8 +70,10 @@ API health: http://localhost:4000/api/health
 
 ## No login
 
-This FINAL version intentionally skips authentication, per project direction.
-A single demo learner identity is used by the platform for local analytics.
+This version intentionally skips authentication. Each browser receives a locally
+stored anonymous ID, so attempts, results, analytics, tutor history, and mistakes
+are separated without requiring sign-in. Clearing browser storage starts a new
+anonymous learner profile.
 
 ## Optional OpenAI
 

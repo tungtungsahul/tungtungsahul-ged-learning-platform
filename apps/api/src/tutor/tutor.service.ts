@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma.service";
 import OpenAI from "openai";
 
@@ -30,28 +30,21 @@ export class TutorService {
     return `I can help you reason through this${subject}. Focus on the evidence in the question, eliminate clearly unsupported choices, and explain why the remaining choice fits the prompt. Ask me about a specific term, concept, or step and I will guide you without simply giving away an active-test answer.`;
   }
 
-  async chat(message: string, context?: Record<string, unknown>) {
+  async chat(message: string, context?: Record<string, unknown>, learnerId?: string, conversationId?: string) {
+    if (!learnerId || !/^anon_[0-9a-f-]{36}$/i.test(learnerId)) throw new BadRequestException("Anonymous learner identity is required.");
+    let conversation = conversationId ? await this.prisma.tutorConversation.findFirst({ where: { id: conversationId, learnerId } }) : null;
+    if (!conversation) conversation = await this.prisma.tutorConversation.create({ data: { learnerId, subject: context?.subject as any, examId: context?.examId as string | undefined, attemptId: context?.attemptId as string | undefined } });
+    await this.prisma.tutorMessage.create({ data: { conversationId: conversation.id, role: "user", content: message } });
+    let reply: string, provider: string;
     if (!this.openai) {
-      return { reply: this.fallback(message, context), provider: "fallback" };
+      reply = this.fallback(message, context); provider = "fallback";
+    } else {
+      const system = ["You are GED AI Tutor.", "For active exams, coach the learner without revealing the correct answer choice.", "You may explain vocabulary, concepts, reasoning steps, and how to use evidence.", "Never expose hidden answer keys or private metadata.", `Context: ${JSON.stringify(context ?? {})}`].join("\n");
+      const completion = await this.openai.chat.completions.create({ model: "gpt-4.1-mini", messages: [{ role: "system", content: system }, { role: "user", content: message }] });
+      reply = completion.choices[0]?.message?.content ?? "I couldn't generate a response."; provider = "openai";
     }
-
-    const system = [
-      "You are GED AI Tutor.",
-      "For active exams, coach the learner without revealing the correct answer choice.",
-      "You may explain vocabulary, concepts, reasoning steps, and how to use evidence.",
-      "Never expose hidden answer keys or private metadata.",
-      `Context: ${JSON.stringify(context ?? {})}`
-    ].join("\n");
-
-    const completion = await this.openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: message }
-      ]
-    });
-
-    return { reply: completion.choices[0]?.message?.content ?? "I couldn't generate a response.", provider: "openai" };
+    await this.prisma.tutorMessage.create({ data: { conversationId: conversation.id, role: "assistant", content: reply } });
+    return { reply, provider, conversationId: conversation.id };
   }
 
   async scoreEssay(essay: string, prompt: string) {

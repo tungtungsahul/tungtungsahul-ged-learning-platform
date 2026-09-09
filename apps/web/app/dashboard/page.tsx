@@ -9,7 +9,7 @@ export default function Dashboard(){
   useEffect(()=>{api<any>("/dashboard").then(setData)},[]);
   if(!data)return <div className="content">Loading dashboard…</div>;
   const band=(s:number)=>s>=175?"College credit simulation":s>=165?"College ready simulation":s>=145?"Passing simulation":"Below passing";
-  return <Shell><div className="topbar"><b>Dashboard</b><span className="muted">Demo Learner</span></div><div className="content">
+  return <Shell><div className="topbar"><b>Dashboard</b><span className="muted">Practice Learner</span></div><div className="content">
     <h1 className="title">Build your GED-ready skills.</h1><p className="subtitle">One place for subjects, language skills, practice exams and targeted review.</p>
     <div className="grid grid4" style={{marginTop:20}}>
       {data.currentPath.map((c:any)=><div className="card" key={c.id}><div className="badge">{c.subject}</div><h3>{c.title}</h3><div className="kpi">{c.progress}%</div><div className="progress"><div style={{width:`${c.progress}%`}}/></div><div className="muted" style={{marginTop:8}}>Course progress</div></div>)}

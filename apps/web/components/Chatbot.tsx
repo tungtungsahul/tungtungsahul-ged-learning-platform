@@ -9,12 +9,14 @@ export function Chatbot({context}:{context?:Record<string,unknown>}) {
     {role:"ai",text:"Hi! I’m GED AI Tutor. Ask about vocabulary, concepts, or how to reason through a problem."}
   ]);
   const [busy,setBusy]=useState(false);
+  const [conversationId,setConversationId]=useState<string>();
 
   async function send(){
     if(!message.trim()||busy)return;
     const text=message.trim(); setMessage(""); setMessages(m=>[...m,{role:"user",text}]); setBusy(true);
     try{
-      const r=await api<{reply:string}>("/tutor/chat",{method:"POST",body:JSON.stringify({message:text,context})});
+      const r=await api<{reply:string,conversationId:string}>("/tutor/chat",{method:"POST",body:JSON.stringify({message:text,context,conversationId})});
+      setConversationId(r.conversationId);
       setMessages(m=>[...m,{role:"ai",text:r.reply}]);
     }catch{setMessages(m=>[...m,{role:"ai",text:"I couldn't reach the tutor service. Please try again."}]);}
     finally{setBusy(false);}

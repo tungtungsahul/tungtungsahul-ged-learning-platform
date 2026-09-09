@@ -7,8 +7,23 @@ import { AttemptStatus, Subject } from "@prisma/client";
 export class ExamsService {
   constructor(private prisma: PrismaService) {}
 
+  private learnerId(value?: string) {
+    if (!value || !/^anon_[0-9a-f-]{36}$/i.test(value)) {
+      throw new BadRequestException("A valid anonymous learner identity is required.");
+    }
+    return value;
+  }
+
+  /** Practice-only, non-linear conversion; it is not an official GED scale. */
   private scaleGed(percentage: number) {
-    return Math.round(100 + percentage);
+    const anchors = [[0, 100], [20, 120], [40, 140], [60, 155], [75, 165], [90, 180], [100, 200]];
+    const raw = Math.max(0, Math.min(100, percentage));
+    for (let i = 1; i < anchors.length; i++) {
+      const [leftRaw, leftScore] = anchors[i - 1];
+      const [rightRaw, rightScore] = anchors[i];
+      if (raw <= rightRaw) return Math.round(leftScore + ((raw - leftRaw) / (rightRaw - leftRaw)) * (rightScore - leftScore));
+    }
+    return 200;
   }
 
   private normalizeAnswer(q: any, answer: any) {
@@ -50,27 +65,29 @@ export class ExamsService {
     return exam;
   }
 
-  async start(examId: string) {
+  async start(examId: string, requestedLearnerId?: string) {
+    const learnerId = this.learnerId(requestedLearnerId);
     const exam = await this.get(examId);
     const active = await this.prisma.attempt.findFirst({
-      where: { learnerId: "demo-learner", examId, status: AttemptStatus.IN_PROGRESS }
+      where: { learnerId, examId, status: AttemptStatus.IN_PROGRESS }
     });
 
     if (active) {
-      if (active.expiresAt > new Date()) return this.getAttempt(active.id);
-      await this.expire(active.id);
+      if (active.expiresAt > new Date()) return this.getAttempt(active.id, learnerId);
+      await this.expire(active.id, learnerId);
     }
 
     const startedAt = new Date();
     const expiresAt = new Date(startedAt.getTime() + exam.durationSeconds * 1000);
     const attempt = await this.prisma.attempt.create({
-      data: { learnerId: "demo-learner", examId, startedAt, expiresAt }
+      data: { learnerId, examId, startedAt, expiresAt }
     });
 
-    return this.getAttempt(attempt.id);
+    return this.getAttempt(attempt.id, learnerId);
   }
 
-  async getAttempt(attemptId: string): Promise<any> {
+  async getAttempt(attemptId: string, requestedLearnerId?: string): Promise<any> {
+    const learnerId = this.learnerId(requestedLearnerId);
     const attempt = await this.prisma.attempt.findUnique({
       where: { id: attemptId },
       include: {
@@ -87,21 +104,22 @@ export class ExamsService {
         answers: { select: { questionId: true, selectedOptionId: true, textValue: true, payload: true } }
       }
     });
-    if (!attempt) throw new NotFoundException("Attempt not found.");
+    if (!attempt || attempt.learnerId !== learnerId) throw new NotFoundException("Attempt not found.");
 
     if (attempt.status === AttemptStatus.IN_PROGRESS && attempt.expiresAt <= new Date()) {
-      await this.expire(attempt.id);
-      return this.getAttempt(attempt.id);
+      await this.expire(attempt.id, learnerId);
+      return this.getAttempt(attempt.id, learnerId);
     }
     return attempt;
   }
 
-  async saveAnswer(attemptId: string, dto: AnswerDto) {
+  async saveAnswer(attemptId: string, dto: AnswerDto, requestedLearnerId?: string) {
+    const learnerId = this.learnerId(requestedLearnerId);
     const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
-    if (!attempt) throw new NotFoundException("Attempt not found.");
+    if (!attempt || attempt.learnerId !== learnerId) throw new NotFoundException("Attempt not found.");
     if (attempt.status !== AttemptStatus.IN_PROGRESS) throw new BadRequestException("Attempt is not active.");
     if (attempt.expiresAt <= new Date()) {
-      await this.expire(attempt.id);
+      await this.expire(attempt.id, learnerId);
       throw new BadRequestException("EXAM_EXPIRED");
     }
 
@@ -124,6 +142,15 @@ export class ExamsService {
         payload: (dto.payload as any) ?? undefined
       }
     });
+    return { saved: true, savedAt: new Date().toISOString() };
+  }
+
+  async saveWorkspaceState(attemptId: string, state: Record<string, unknown>, requestedLearnerId?: string) {
+    const learnerId = this.learnerId(requestedLearnerId);
+    const attempt = await this.prisma.attempt.findUnique({ where: { id: attemptId } });
+    if (!attempt || attempt.learnerId !== learnerId) throw new NotFoundException("Attempt not found.");
+    if (attempt.status !== AttemptStatus.IN_PROGRESS) throw new BadRequestException("Attempt is not active.");
+    await this.prisma.attempt.update({ where: { id: attemptId }, data: { workspaceState: state as any } });
     return { saved: true, savedAt: new Date().toISOString() };
   }
 
@@ -158,8 +185,10 @@ export class ExamsService {
     return { attempt, questions, correct, incorrect, unanswered, percentage, gedScore, timeUsedSeconds };
   }
 
-  async submit(attemptId: string) {
+  async submit(attemptId: string, requestedLearnerId?: string) {
+    const learnerId = this.learnerId(requestedLearnerId);
     const calc = await this.calculate(attemptId);
+    if (calc.attempt.learnerId !== learnerId) throw new NotFoundException("Attempt not found.");
     const expired = new Date() >= calc.attempt.expiresAt;
     const status = expired ? AttemptStatus.EXPIRED : AttemptStatus.SUBMITTED;
 
@@ -212,21 +241,22 @@ export class ExamsService {
         create: {
           id: `${attemptId}-${q.id}`,
           courseId: calc.attempt.exam ? (await this.prisma.exam.findUnique({ where: { id: calc.attempt.examId } }))!.courseId : "",
-          learnerId: "demo-learner",
+          learnerId: calc.attempt.learnerId,
           questionId: q.id,
           topic: q.topic
         }
       }).catch(() => undefined);
     }
 
-    return this.result(attemptId);
+    return this.result(attemptId, learnerId);
   }
 
-  private async expire(attemptId: string) {
-    return this.submit(attemptId);
+  private async expire(attemptId: string, learnerId: string) {
+    return this.submit(attemptId, learnerId);
   }
 
-  async result(attemptId: string) {
+  async result(attemptId: string, requestedLearnerId?: string) {
+    const learnerId = this.learnerId(requestedLearnerId);
     const result = await this.prisma.result.findUnique({
       where: { attemptId },
       include: {
@@ -238,10 +268,12 @@ export class ExamsService {
         }
       }
     });
-    if (!result) throw new NotFoundException("Result not found.");
+    if (!result || result.attempt.learnerId !== learnerId) throw new NotFoundException("Result not found.");
 
     return {
       ...result,
+      scoreLabel: "Simulated GED Practice Score",
+      scoreBand: result.gedScore < 145 ? "Below 145" : result.gedScore < 165 ? "145–164" : result.gedScore < 175 ? "165–174" : "175–200",
       questions: result.attempt.exam.questions.map(q => {
         const a = result.attempt.answers.find(x => x.questionId === q.id);
         const correct = q.options.find(o => o.isCorrect);
