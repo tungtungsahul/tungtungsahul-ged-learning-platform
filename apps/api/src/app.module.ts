@@ -1,3 +1,4 @@
+import { DashboardService } from './dashboard/dashboard.service';
 import { DashboardController } from './dashboard/dashboard.controller';
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
@@ -21,6 +22,6 @@ import { AdminModule } from "./admin/admin.module";
     AdminModule
   ],
   controllers: [DashboardController,HealthController],
-  providers: [PrismaService]
+  providers: [PrismaService, DashboardService]
 })
 export class AppModule {}
